@@ -2,11 +2,19 @@ package run
 
 import (
 	"errors"
+	"log/slog"
+	"os"
+	"time"
+
 	"github.com/hectorgimenez/d2go/pkg/data"
 	"github.com/hectorgimenez/d2go/pkg/data/area"
 	"github.com/hectorgimenez/d2go/pkg/data/npc"
 	"github.com/hectorgimenez/d2go/pkg/data/object"
+	"github.com/hectorgimenez/d2go/pkg/data/skill"
 	"github.com/hectorgimenez/koolo/internal/action"
+	"github.com/hectorgimenez/koolo/internal/action/step"
+	"github.com/hectorgimenez/koolo/internal/action/step/paladin"
+	"github.com/hectorgimenez/koolo/internal/character"
 	"github.com/hectorgimenez/koolo/internal/config"
 	"github.com/hectorgimenez/koolo/internal/context"
 	"github.com/hectorgimenez/koolo/internal/game"
@@ -15,19 +23,39 @@ import (
 )
 
 var baalThronePosition = data.Position{
-	X: 15095,
-	Y: 5042,
+	X: 15094,
+	Y: 5029,
+}
+
+type WaveMonster struct {
+	ID   npc.ID
+	Type data.MonsterType
+}
+
+var waveMonsters = []WaveMonster{
+	{ID: npc.WarpedShaman, Type: data.MonsterTypeSuperUnique},      // Wave 1
+	{ID: npc.BaalSubjectMummy, Type: data.MonsterTypeSuperUnique},  // Wave 2
+	{ID: npc.CouncilMemberBall, Type: data.MonsterTypeSuperUnique}, // Wave 3
+	{ID: npc.VenomLord2, Type: data.MonsterTypeSuperUnique},        // Wave 4
+	{ID: npc.BaalsMinion, Type: data.MonsterTypeMinion},            // Wave 5
 }
 
 type Baal struct {
 	ctx                *context.Status
 	clearMonsterFilter data.MonsterFilter // Used to clear area (basically TZ)
+	Logger             *slog.Logger
+	poisonCleanse      *paladin.PoisonCleanse
 }
 
 func NewBaal(clearMonsterFilter data.MonsterFilter) *Baal {
+	ctx := context.Get()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
 	return &Baal{
-		ctx:                context.Get(),
+		ctx:                ctx,
 		clearMonsterFilter: clearMonsterFilter,
+		Logger:             logger,
+		poisonCleanse:      paladin.NewPoisonCleanse(ctx.Data, logger),
 	}
 }
 
@@ -84,13 +112,10 @@ func (s Baal) Run() error {
 		action.OpenTPIfLeader()
 	}
 
-	err = action.ClearAreaAroundPlayer(50, data.MonsterAnyFilter())
+	err = action.ClearAreaAroundPlayer(29, data.MonsterAnyFilter())
 	if err != nil {
 		return err
 	}
-
-	// Force rebuff before waves
-	action.Buff()
 
 	// Come back to previous position
 	err = action.MoveToCoords(baalThronePosition)
@@ -98,12 +123,26 @@ func (s Baal) Run() error {
 		return err
 	}
 
+	// Force rebuff before waves
+	action.Buff()
+
 	// Handle Baal waves
 	lastWave := false
+	waveNumber := 0
+	lastHandledWave := 0
+
 	for !lastWave {
-		// Check for last wave
-		if _, found := s.ctx.Data.Monsters.FindOne(npc.BaalsMinion, data.MonsterTypeMinion); found {
-			lastWave = true
+		// Check for waves based on monsters detected
+		for i, monster := range waveMonsters {
+			if _, found := s.ctx.Data.Monsters.FindOne(monster.ID, monster.Type); found {
+				if monster.ID == npc.BaalsMinion {
+					lastWave = true
+					s.ctx.Logger.Debug("Last Baal wave detected.")
+					continue
+				}
+				waveNumber = i + 1
+				break
+			}
 		}
 
 		// Clear current wave
@@ -116,6 +155,14 @@ func (s Baal) Run() error {
 		err = action.MoveToCoords(baalThronePosition)
 		if err != nil {
 			return err
+		}
+
+		// If no monsters are detected and we have a wave number,
+		// handle the post-wave logic only once per waveNumber.
+		if waveNumber > 0 && len(s.ctx.Data.Monsters.Enemies(data.MonsterAnyFilter())) == 0 && waveNumber != lastHandledWave {
+			s.ctx.Logger.Debug("No monsters detected, post wave clear on wave", slog.Int("waveNumber", waveNumber))
+			s.handlePostWaveClear(waveNumber)
+			lastHandledWave = waveNumber
 		}
 
 		// Small delay to allow next wave to spawn if not last wave
@@ -175,4 +222,48 @@ func (s Baal) checkForSoulsOrDolls() bool {
 	}
 
 	return false
+}
+
+func (s Baal) handlePostWaveClear(waveNumber int) {
+	switch c := s.ctx.Char.(type) {
+	case character.Hammerdin:
+		s.handleHammerdinAuras(waveNumber, c)
+	// Extend to other character types
+	default:
+		return
+	}
+}
+
+func (s Baal) handleHammerdinAuras(waveNumber int, char character.Hammerdin) {
+	hasCleansing := char.HasSkillBound(skill.Cleansing)
+	hasSalvation := char.HasSkillBound(skill.Salvation)
+
+	if waveNumber == 0 {
+		s.ctx.Logger.Debug("No wave detected, not handling auras")
+		return
+	}
+
+	if waveNumber == 2 && hasCleansing {
+		s.ctx.Logger.Debug("Cleansing poison for 4 seconds on wave 2")
+		s.poisonCleanse.CleansePoison(6 * time.Second)
+		return
+	}
+
+	if waveNumber == 3 && hasSalvation {
+		s.ctx.Logger.Debug("Switching to Salvation aura on wave 3")
+		if err := step.SetSkill(skill.Salvation); err != nil {
+			s.ctx.Logger.Warn("Failed switching to Salvation aura")
+			return
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	// Needs better logic not to interfere with other skills
+	// if waveNumber != 2 && s.poisonCleanse.IsPoisoned() && hasCleansing {
+	// 	s.ctx.Logger.Debug("Poisoned, cleansing for 2 seconds")
+	// 	s.poisonCleanse.CleansePoison(2 * time.Second)
+	// 	return
+	// }
+
+	return
 }
