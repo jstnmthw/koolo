@@ -136,8 +136,8 @@ func (gm *Manager) CreateOnlineGame(gameCounter int) (string, error) {
 	gm.hid.Click(LeftButton, 1000, 161)
 	utils.Sleep(200)
 	gamePassword := config.Characters[gm.supervisorName].Companion.GamePassword
+	gm.clearGameNameOrPasswordField()
 	if gamePassword != "" {
-		gm.clearGameNameOrPasswordField()
 		for _, ch := range gamePassword {
 			gm.hid.PressKey(gm.hid.GetASCIICode(fmt.Sprintf("%c", ch)))
 		}
