@@ -13,6 +13,7 @@ import (
 )
 
 var diabloSpawnPosition = data.Position{X: 7792, Y: 5294}
+var chaosNavToPosition = data.Position{X: 7732, Y: 5292}
 
 type Diablo struct {
 	ctx *context.Status
@@ -42,21 +43,38 @@ func (d *Diablo) Run() error {
 
 	// We move directly to Diablo spawn position if StartFromStar is enabled, not clearing the path
 	if d.ctx.CharacterCfg.Game.Diablo.StartFromStar {
-		if err := action.MoveToCoords(diabloSpawnPosition); err != nil {
+		if err := action.MoveToCoords(chaosNavToPosition); err != nil {
 			return err
 		}
+		if d.ctx.CharacterCfg.Companion.Leader {
+			action.OpenTPIfLeader()
+			action.Buff()
+			action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
+		}
 	} else {
-		err := action.ClearThroughPath(diabloSpawnPosition, 30, d.getMonsterFilter())
+		//open portal in entrance
+		if d.ctx.CharacterCfg.Companion.Leader {
+			action.OpenTPIfLeader()
+			action.Buff()
+			action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
+		}
+		//path through towards vizier
+		err := action.ClearThroughPath(chaosNavToPosition, 30, d.getMonsterFilter())
+		if err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
 	}
 
-	if d.ctx.CharacterCfg.Companion.Leader {
-		action.OpenTPIfLeader()
-		action.Buff()
-		action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
-	}
+	action.OpenTPIfLeader()
+
+	// if d.ctx.CharacterCfg.Companion.Leader {
+	// 	action.OpenTPIfLeader()
+	// 	action.Buff()
+	// 	action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
+	// }
 
 	sealGroups := map[string][]object.Name{
 		"Vizier":       {object.DiabloSeal4, object.DiabloSeal5}, // Vizier
@@ -147,7 +165,10 @@ func (d *Diablo) killSealElite(boss string) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	return fmt.Errorf("no seal elite found for %s within %v seconds", boss, timeout.Seconds())
+	// It's possible that the elites were killed by the time we got here
+	// Log a warning and continue
+	d.ctx.Logger.Warn(fmt.Sprintf("No elite found for %s", boss))
+	return nil
 }
 
 func (d *Diablo) getMonsterFilter() data.MonsterFilter {
