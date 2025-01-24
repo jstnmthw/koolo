@@ -23,12 +23,20 @@ type Hammerdin struct {
 	BaseCharacter
 }
 
+func (s Hammerdin) HasSkillBound(sk skill.ID) bool {
+	_, found := s.Data.KeyBindings.KeyBindingForSkill(sk)
+	if !found {
+		s.Logger.Debug("Skill not bound", slog.String("skill", sk.Desc().Name))
+	}
+	return found
+}
+
 func (s Hammerdin) CheckKeyBindings() []skill.ID {
 	requireKeybindings := []skill.ID{skill.Concentration, skill.HolyShield, skill.TomeOfTownPortal}
 	missingKeybindings := []skill.ID{}
 
 	for _, cskill := range requireKeybindings {
-		if _, found := s.Data.KeyBindings.KeyBindingForSkill(cskill); !found {
+		if !s.HasSkillBound(cskill) {
 			missingKeybindings = append(missingKeybindings, cskill)
 		}
 	}
@@ -130,6 +138,7 @@ func (s Hammerdin) KillCountess() error {
 func (s Hammerdin) KillAndariel() error {
 	return s.killMonsterByName(npc.Andariel, data.MonsterTypeUnique, false)
 }
+
 func (s Hammerdin) KillSummoner() error {
 	return s.killMonsterByName(npc.Summoner, data.MonsterTypeUnique, false)
 }
@@ -167,6 +176,7 @@ func (s Hammerdin) KillCouncil() error {
 func (s Hammerdin) KillMephisto() error {
 	return s.killMonsterByName(npc.Mephisto, data.MonsterTypeUnique, false)
 }
+
 func (s Hammerdin) KillIzual() error {
 	return s.killMonster(npc.Izual, data.MonsterTypeUnique)
 }
