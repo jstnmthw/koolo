@@ -31,6 +31,9 @@ func PickupItem(it data.Item) error {
 	ctx := context.Get()
 	ctx.SetLastStep("PickupItem")
 
+	// To ensure animation/movement is finished and cursor position is accurate
+	time.Sleep(50 * time.Millisecond)
+
 	// Calculate base screen position for item
 	baseX := it.Position.X - 1
 	baseY := it.Position.Y - 1
