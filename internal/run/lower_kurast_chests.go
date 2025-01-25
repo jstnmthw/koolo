@@ -113,11 +113,13 @@ func (run LowerKurastChests) Run() error {
 		return err
 	}
 
+	// This should be moved in separate logic.
+	// We should check where the bot is going next.
 	// Move to A4 if possible to shorten the run time
-	err = action.WayPoint(area.ThePandemoniumFortress)
-	if err != nil {
-		return err
-	}
+	// err = action.WayPoint(area.ThePandemoniumFortress)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// Done
 	return nil
