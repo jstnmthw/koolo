@@ -13,7 +13,7 @@ import (
 )
 
 var diabloSpawnPosition = data.Position{X: 7792, Y: 5294}
-var chaosNavToPosition = data.Position{X: 7732, Y: 5292}
+var chaosNavToPosition = data.Position{X: 7732, Y: 5292} //into path towards vizier
 
 type Diablo struct {
 	ctx *context.Status
@@ -43,9 +43,11 @@ func (d *Diablo) Run() error {
 
 	// We move directly to Diablo spawn position if StartFromStar is enabled, not clearing the path
 	if d.ctx.CharacterCfg.Game.Diablo.StartFromStar {
-		if err := action.MoveToCoords(chaosNavToPosition); err != nil {
+		//move to star
+		if err := action.MoveToCoords(diabloSpawnPosition); err != nil {
 			return err
 		}
+		//open portal if leader
 		if d.ctx.CharacterCfg.Companion.Leader {
 			action.OpenTPIfLeader()
 			action.Buff()
@@ -63,18 +65,7 @@ func (d *Diablo) Run() error {
 		if err != nil {
 			return err
 		}
-		if err != nil {
-			return err
-		}
 	}
-
-	action.OpenTPIfLeader()
-
-	// if d.ctx.CharacterCfg.Companion.Leader {
-	// 	action.OpenTPIfLeader()
-	// 	action.Buff()
-	// 	action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
-	// }
 
 	sealGroups := map[string][]object.Name{
 		"Vizier":       {object.DiabloSeal4, object.DiabloSeal5}, // Vizier
@@ -106,6 +97,11 @@ func (d *Diablo) Run() error {
 
 			// Clear everything around the seal
 			action.ClearAreaAroundPlayer(10, d.ctx.Data.MonsterFilterAnyReachable())
+
+			//Buff refresh before Infector
+			if object.DiabloSeal1 == sealID {
+				action.Buff()
+			}
 
 			if err = action.InteractObject(seal, func() bool {
 				seal, _ = d.ctx.Data.Objects.FindOne(sealID)
