@@ -43,37 +43,31 @@ func (d *Diablo) Run() error {
 
 	// We move directly to Diablo spawn position if StartFromStar is enabled, not clearing the path
 	if d.ctx.CharacterCfg.Game.Diablo.StartFromStar {
-		//move to star
+		// Move to star
 		if err := action.MoveToCoords(diabloSpawnPosition); err != nil {
 			return err
 		}
-		//open portal if leader
+
+		// Open portal if leader
 		if d.ctx.CharacterCfg.Companion.Leader {
 			action.OpenTPIfLeader()
 			action.Buff()
 			action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
 		}
 	} else {
-		//open portal in entrance
+		// Open portal in entrance
 		if d.ctx.CharacterCfg.Companion.Leader {
 			action.OpenTPIfLeader()
 			action.Buff()
 			action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
 		}
-		//path through towards vizier
+
+		// Path through towards vizier
 		err := action.ClearThroughPath(chaosNavToPosition, 30, d.getMonsterFilter())
 		if err != nil {
 			return err
 		}
 	}
-
-	action.OpenTPIfLeader()
-
-	// if d.ctx.CharacterCfg.Companion.Leader {
-	// 	action.OpenTPIfLeader()
-	// 	action.Buff()
-	// 	action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
-	// }
 
 	sealGroups := map[string][]object.Name{
 		"Vizier":       {object.DiabloSeal4, object.DiabloSeal5}, // Vizier
