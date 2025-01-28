@@ -43,24 +43,26 @@ func (d *Diablo) Run() error {
 
 	// We move directly to Diablo spawn position if StartFromStar is enabled, not clearing the path
 	if d.ctx.CharacterCfg.Game.Diablo.StartFromStar {
-		//move to star
+		// Move to star
 		if err := action.MoveToCoords(diabloSpawnPosition); err != nil {
 			return err
 		}
-		//open portal if leader
+
+		// Open portal if leader
 		if d.ctx.CharacterCfg.Companion.Leader {
 			action.OpenTPIfLeader()
 			action.Buff()
 			action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
 		}
 	} else {
-		//open portal in entrance
+		// Open portal in entrance
 		if d.ctx.CharacterCfg.Companion.Leader {
 			action.OpenTPIfLeader()
 			action.Buff()
 			action.ClearAreaAroundPlayer(30, data.MonsterAnyFilter())
 		}
-		//path through towards vizier
+
+		// Path through towards vizier
 		err := action.ClearThroughPath(chaosNavToPosition, 30, d.getMonsterFilter())
 		if err != nil {
 			return err
@@ -161,7 +163,10 @@ func (d *Diablo) killSealElite(boss string) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	return fmt.Errorf("no seal elite found for %s within %v seconds", boss, timeout.Seconds())
+	// It's possible that the elites were killed by the time we got here
+	// Log a warning and continue
+	d.ctx.Logger.Warn(fmt.Sprintf("No elite found for %s", boss))
+	return nil
 }
 
 func (d *Diablo) getMonsterFilter() data.MonsterFilter {

@@ -89,6 +89,14 @@ func UsePortalInTown() error {
 		return fmt.Errorf("failed to leave town area")
 	}
 
+	// Set another TP after taking the portal
+	if ctx.CharacterCfg.Companion.Leader {
+		err = step.OpenPortal()
+		if err != nil {
+			ctx.Logger.Warn("Error opening portal", "error", err)
+		}
+	}
+
 	// Perform item pickup after re-entering the portal
 	err = ItemPickup(40)
 	if err != nil {
