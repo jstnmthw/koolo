@@ -142,6 +142,13 @@ func (s Baal) Run() error {
 				break
 			}
 		}
+
+		// Clear current wave
+		err = s.clearWave()
+		if err != nil {
+			return err
+		}
+
 		// Return to throne position between waves
 		err = action.ClearAreaAroundPosition(baalThronePosition, 50, data.MonsterAnyFilter())
 		if err != nil {
